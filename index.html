@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Desk Pet</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    /* Face Container */
+    #stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+
+    .face {
+      display: flex;
+      gap: 50px;
+      margin-bottom: 30px;
+    }
+    .eye {
+      width: 60px;
+      height: 100px;
+      background: #4ade80;
+      border-radius: 30px;
+      transition: all 0.25s ease-in-out;
+      box-shadow: 0 0 35px currentColor;
+      color: #4ade80;
+    }
+    .blink {
+      height: 8px !important;
+      margin-top: 46px;
+    }
+    .eye.happy {
+      background: #38bdf8 !important;
+      color: #38bdf8 !important;
+      border-radius: 50px 50px 15px 15px;
+      height: 55px;
+      margin-top: 20px;
+    }
+    #left-eye.angry {
+      background: #ef4444 !important;
+      color: #ef4444 !important;
+      transform: rotate(25deg);
+    }
+    #right-eye.angry {
+      background: #ef4444 !important;
+      color: #ef4444 !important;
+      transform: rotate(-25deg);
+    }
+    .eye.surprised {
+      background: #facc15 !important;
+      color: #facc15 !important;
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+    }
+    .eye.sad {
+      background: #818cf8 !important;
+      color: #818cf8 !important;
+      height: 50px;
+      border-radius: 15px 15px 40px 40px;
+      margin-top: 25px;
+    }
+
+    .mouth {
+      width: 75px;
+      height: 12px;
+      background: #4ade80;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+    .talking {
+      height: 45px !important;
+      border-radius: 25px;
+    }
+
+    #caption {
+      margin-top: 35px;
+      font-size: 15px;
+      color: #666;
+      max-width: 80%;
+      text-align: center;
+      min-height: 24px;
+      transition: color 0.3s;
+    }
+
+    /* Floating Menu Controls (hidden by default) */
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      background: rgba(24, 24, 27, 0.95);
+      border: 1px solid #3f3f46;
+      border-radius: 16px;
+      padding: 16px;
+      width: 90%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      z-index: 10;
+    }
+    .controls.hidden {
+      transform: translateY(120%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    input, button {
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #3f3f46;
+      font-size: 14px;
+    }
+    input { background: #18181b; color: #fff; }
+    button {
+      background: #4ade80;
+      color: #000;
+      font-weight: bold;
+      cursor: pointer;
+      border: none;
+    }
+    #toggleListenBtn { background: #22c55e; color: #000; }
+    .hint {
+      font-size: 11px;
+      color: #71717a;
+      text-align: center;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Fullscreen Face Area (Tap to toggle menu) -->
+  <div id="stage" onclick="toggleMenu()">
+    <div class="face">
+      <div class="eye" id="left-eye"></div>
+      <div class="eye" id="right-eye"></div>
+    </div>
+    <div class="mouth" id="mouth"></div>
+    <div id="caption">Tap anywhere to show/hide controls</div>
+  </div>
+
+  <!-- Hidden drawer for mobile settings -->
+  <div class="controls" id="menuDrawer">
+    <p class="hint">Tap background to hide controls</p>
+    <input type="password" id="apiKey" placeholder="Gemini API Key" onchange="saveKey()" />
+    
+    <div style="display: flex; gap: 6px;">
+      <input type="text" id="userText" placeholder="Say or type..." style="flex: 1;" onkeydown="if(event.key==='Enter') sendText()" />
+      <button onclick="sendText()" style="padding: 10px 14px;">Send</button>
+    </div>
+
+    <button id="toggleListenBtn" onclick="toggleAlwaysListening()">🎙️ Start "Hey Pet" Detection</button>
+    <button onclick="clearMemory()" style="background:#27272a; color:#a1a1aa; font-size:12px; padding:8px;">Clear Memory</button>
+  </div>
+
+  <script>
+    const leftEye = document.getElementById('left-eye');
+    const rightEye = document.getElementById('right-eye');
+    const mouth = document.getElementById('mouth');
+    const caption = document.getElementById('caption');
+    const menuDrawer = document.getElementById('menuDrawer');
+    const toggleListenBtn = document.getElementById('toggleListenBtn');
+    const apiKeyInput = document.getElementById('apiKey');
+
+    let currentMood = 'default';
+    let isAlwaysListening = false;
+    let isSpeaking = false;
+    let chatHistory = [];
+
+    // Load saved API Key from device memory
+    window.onload = () => {
+      const savedKey = localStorage.getItem('gemini_deskpet_key');
+      if (savedKey) apiKeyInput.value = savedKey;
+      requestWakeLock();
+    };
+
+    function saveKey() {
+      localStorage.setItem('gemini_deskpet_key', apiKeyInput.value.trim());
+    }
+
+    function toggleMenu() {
+      menuDrawer.classList.toggle('hidden');
+    }
+
+    // Keep phone screen awake
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.log("WakeLock skipped/unsupported");
+      }
+    }
+
+    // Blinking loop
+    setInterval(() => {
+      if (currentMood === 'surprised') return;
+      leftEye.classList.add('blink');
+      rightEye.classList.add('blink');
+      setTimeout(() => {
+        leftEye.classList.remove('blink');
+        rightEye.classList.remove('blink');
+      }, 180);
+    }, 3500);
+
+    function setMood(mood) {
+      currentMood = mood;
+      leftEye.className = 'eye';
+      rightEye.className = 'eye';
+      if (mood !== 'default') {
+        leftEye.classList.add(mood);
+        rightEye.classList.add(mood);
+      }
+      const colors = {
+        happy: '#38bdf8',
+        angry: '#ef4444',
+        surprised: '#facc15',
+        sad: '#818cf8',
+        default: '#4ade80'
+      };
+      mouth.style.background = colors[mood] || colors.default;
+    }
+
+    function clearMemory() {
+      chatHistory = [];
+      caption.innerText = "Memory cleared!";
+      setMood('default');
+    }
+
+    // Speech Recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        caption.innerText = 'Listening for "Hey Pet"...';
+      };
+
+      recognition.onresult = async (event) => {
+        if (isSpeaking) return;
+        const text = event.results[event.results.length - 1][0].transcript.trim();
+        const match = text.match(/^(?:hey\s+)?pet[\s,.:;]*(.*)$/i);
+
+        if (match) {
+          const query = match[1].trim();
+          if (query.length > 0) {
+            caption.innerText = `"${query}"`;
+            await askPet(query);
+          } else {
+            setMood('surprised');
+            speak("Yes? I'm listening!");
+            caption.innerText = "I'm listening!";
+          }
+        }
+      };
+
+      recognition.onend = () => {
+        if (isAlwaysListening && !isSpeaking) {
+          try { recognition.start(); } catch (err) {}
+        }
+      };
+    }
+
+    function toggleAlwaysListening() {
+      if (!recognition) return alert("Speech recognition requires Chrome/Safari.");
+      saveKey();
+      if (!apiKeyInput.value.trim()) return alert("Enter Gemini API key first.");
+
+      isAlwaysListening = !isAlwaysListening;
+      if (isAlwaysListening) {
+        toggleListenBtn.innerText = "🛑 Stop Listening";
+        toggleListenBtn.style.background = "#ef4444";
+        toggleListenBtn.style.color = "#fff";
+        try { recognition.start(); } catch (e) {}
+        menuDrawer.classList.add('hidden'); // auto-hide menu on start
+      } else {
+        toggleListenBtn.innerText = '🎙️ Start "Hey Pet" Detection';
+        toggleListenBtn.style.background = "#22c55e";
+        toggleListenBtn.style.color = "#000";
+        recognition.stop();
+        caption.innerText = "Listening stopped.";
+      }
+    }
+
+    function sendText() {
+      const input = document.getElementById('userText');
+      const val = input.value.trim();
+      if (!val) return;
+      caption.innerText = `"${val}"`;
+      input.value = "";
+      askPet(val);
+    }
+
+    async function askPet(promptText) {
+      const key = apiKeyInput.value.trim();
+      if (!key) return alert("Paste API key first.");
+
+      caption.innerText = "Thinking...";
+      chatHistory.push({ role: "user", parts: [{ text: promptText }] });
+      if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${key}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "OBJECT",
+                properties: {
+                  mood: { type: "STRING", enum: ["happy", "angry", "surprised", "sad", "default"] },
+                  reply: { type: "STRING" }
+                },
+                required: ["mood", "reply"]
+              }
+            },
+            systemInstruction: { parts: [{ text: "You are a cute desktop pet. Keep replies to 1-2 punchy spoken sentences and choose an emotion." }] },
+            contents: chatHistory
+          })
+        });
+
+        const data = await res.json();
+        const parsed = JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text);
+        const mood = (parsed.mood || "default").toLowerCase();
+        const reply = parsed.reply || "I'm here!";
+
+        chatHistory.push({ role: "model", parts: [{ text: JSON.stringify(parsed) }] });
+        setMood(mood);
+        caption.innerText = reply;
+        speak(reply);
+        setTimeout(() => setMood('default'), 7000);
+      } catch (err) {
+        caption.innerText = "Error contacting pet brain.";
+        chatHistory.pop();
+      }
+    }
+
+    function speak(text) {
+      isSpeaking = true;
+      if (recognition && isAlwaysListening) {
+        try { recognition.stop(); } catch(e) {}
+      }
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.pitch = 1.3;
+      utter.onstart = () => mouth.classList.add('talking');
+      utter.onend = () => {
+        mouth.classList.remove('talking');
+        isSpeaking = false;
+        if (isAlwaysListening) {
+          setTimeout(() => { try { recognition.start(); } catch(e) {} }, 300);
+        }
+      };
+      window.speechSynthesis.speak(utter);
+    }
+  </script>
+</body>
+</html>
