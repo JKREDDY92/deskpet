@@ -166,7 +166,7 @@
   </div>
 
   <!-- Settings Drawer -->
-  <div class="controls" id="menuDrawer">
+  <div class="controls" id="menuDrawer" onclick="event.stopPropagation()">
     <p class="hint">Tap background to hide controls</p>
     <input type="password" id="apiKey" placeholder="Paste Gemini API Key" onchange="saveKey()" />
     
@@ -321,22 +321,38 @@
     }
 
     function toggleAlwaysListening() {
-      if (!recognition) return alert("Speech recognition requires Chrome or Edge.");
+      if (!recognition) {
+        alert("Speech recognition is not supported in this browser. Please use Chrome on Android/PC or Safari on iOS.");
+        return;
+      }
+      
       saveKey();
-      if (!apiKeyInput.value.trim()) return alert("Enter Gemini API key first.");
+      const currentKey = apiKeyInput.value.trim();
+      if (!currentKey) {
+        alert("Please paste your Gemini API key first!");
+        return;
+      }
 
       isAlwaysListening = !isAlwaysListening;
+
       if (isAlwaysListening) {
         toggleListenBtn.innerText = "🛑 Stop Listening";
         toggleListenBtn.style.background = "#ef4444";
         toggleListenBtn.style.color = "#fff";
-        try { recognition.start(); } catch (e) {}
-        menuDrawer.classList.add('hidden');
+        caption.innerText = 'Starting microphone...';
+        
+        try {
+          recognition.start();
+        } catch (e) {
+          console.warn("Recognition already active or failed to start:", e);
+        }
       } else {
         toggleListenBtn.innerText = '🎙️ Start "Hey Pet" Detection';
         toggleListenBtn.style.background = "#22c55e";
         toggleListenBtn.style.color = "#000";
-        recognition.stop();
+        try {
+          recognition.stop();
+        } catch (e) {}
         caption.innerText = "Listening stopped.";
       }
     }
